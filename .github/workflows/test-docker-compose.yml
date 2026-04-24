@@ -9,6 +9,10 @@ on:
       - opened
       - synchronize
 
+concurrency:
+  group: supabase-local-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
 
   test-docker-compose:

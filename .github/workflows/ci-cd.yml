@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: supabase-local-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest

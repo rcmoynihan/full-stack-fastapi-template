@@ -15,6 +15,10 @@ on:
         required: false
         default: 'false'
 
+concurrency:
+  group: supabase-local-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -43,11 +47,6 @@ jobs:
     if: ${{ needs.changes.outputs.changed == 'true' }}
     timeout-minutes: 60
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        shardIndex: [1, 2, 3, 4]
-        shardTotal: [4]
-      fail-fast: false
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
     - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
@@ -73,7 +72,7 @@ jobs:
     - name: Start Supabase Auth
       run: bash scripts/supabase-local.sh start
     - name: Run Playwright tests
-      run: bash scripts/docker-compose-local.sh run --rm playwright bunx playwright test --fail-on-flaky-tests --trace=retain-on-failure --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+      run: bash scripts/docker-compose-local.sh run --rm playwright bunx playwright test --fail-on-flaky-tests --trace=retain-on-failure
     - run: bash scripts/docker-compose-local.sh down -v --remove-orphans
       if: always()
     - name: Stop Supabase Auth
@@ -83,7 +82,7 @@ jobs:
       if: ${{ !cancelled() }}
       uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
       with:
-        name: blob-report-${{ matrix.shardIndex }}
+        name: blob-report
         path: frontend/blob-report
         include-hidden-files: true
         retention-days: 1
