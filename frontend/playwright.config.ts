@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config'
 
+process.env.MAILCATCHER_HOST ??= 'http://localhost:1080'
+
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv

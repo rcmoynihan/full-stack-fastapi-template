@@ -2,9 +2,13 @@
 !.vscode/extensions.json
 node_modules/
 /test-results/
+/frontend/test-results/
 /playwright-report/
+/frontend/playwright-report/
 /blob-report/
+/frontend/blob-report/
 /playwright/.cache/
+/.playwright-cli/
 
 # Local scratch space for migration notes, generated checks, and agent handoff.
 .tmp/

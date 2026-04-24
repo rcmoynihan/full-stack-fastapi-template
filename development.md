@@ -25,7 +25,8 @@ Use this mode for day-to-day frontend work and for the fastest feedback loop.
 Start the database with Compose, then run the backend and frontend on the host:
 
 ```bash
-docker compose up -d --wait db
+bash scripts/docker-compose-local.sh up -d --wait db mailcatcher
+(cd backend && uv run bash scripts/prestart.sh)
 just backend-dev
 just frontend-dev
 ```
@@ -52,7 +53,7 @@ hot reload there. For frontend hot reload, use the host-run workflow above, or
 stop the Compose frontend before starting Vite on the host:
 
 ```bash
-docker compose stop frontend
+bash scripts/docker-compose-local.sh stop frontend
 just frontend-dev
 ```
 
@@ -149,10 +150,14 @@ The root `.env` file is committed for this template and contains local
 development defaults only. Staging and production configuration belongs in Fly
 secrets.
 
+The local Postgres container listens on `127.0.0.1:55432` from the host and on
+`db:5432` from other Compose services. This avoids collisions with Supabase CLI
+or another local Postgres instance using the default host port.
+
 Local frontend API calls use the Vite `/api` proxy configured in
-`frontend/vite.config.ts`; `frontend/.env` is not used for the local API URL.
-Use `frontend/.env` only for local test or support variables, such as
-`MAILCATCHER_*` values if applicable.
+`frontend/vite.config.ts`. Playwright defaults to
+`MAILCATCHER_HOST=http://localhost:1080` for host-run tests, while the Compose
+Playwright service sets `MAILCATCHER_HOST=http://mailcatcher:1080`.
 Runtime frontend configuration in deployed environments is generated from Fly
 environment variables at container startup.
 
@@ -162,6 +167,11 @@ After changing local environment values, restart affected services:
 just down
 just dev-watch
 ```
+
+Local Compose commands run through `scripts/docker-compose-local.sh`, which
+selects the native Docker image platform for the current machine. Set
+`LOCAL_DOCKER_PLATFORM` only when you intentionally need to override that
+platform.
 
 ## API Client
 

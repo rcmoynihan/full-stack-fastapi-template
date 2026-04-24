@@ -1,4 +1,3 @@
-app = "myapp-frontend-prod"
 primary_region = "iad"
 
 [[http_service.checks]]

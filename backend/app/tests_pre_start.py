@@ -1,16 +1,19 @@
-import logging
 import os
 
+import structlog
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.engine import URL
 from sqlmodel import Session, select
 from tenacity import after_log, before_log, retry, stop_after_attempt, wait_fixed
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from app.core.logging import setup_logging
+
+logger = structlog.get_logger(__name__)
 
 MAX_TRIES = 60 * 5
 WAIT_SECONDS = 1
+LOG_LEVEL_INFO = 20
+LOG_LEVEL_WARNING = 30
 DEFAULT_POSTGRES_SERVER = "localhost"
 DEFAULT_POSTGRES_PORT = 5432
 DEFAULT_POSTGRES_DB = "app"
@@ -32,8 +35,8 @@ def _build_test_database_url() -> URL:
     ]
     if ignored_urls:
         logger.warning(
-            "Ignoring deployment database URL variables for backend tests: %s",
-            ", ".join(ignored_urls),
+            "ignored_deployment_database_urls_for_tests",
+            variable_names=ignored_urls,
         )
 
     os.environ["ENVIRONMENT"] = "local"
@@ -62,8 +65,8 @@ def _build_test_database_url() -> URL:
 @retry(
     stop=stop_after_attempt(MAX_TRIES),
     wait=wait_fixed(WAIT_SECONDS),
-    before=before_log(logger, logging.INFO),
-    after=after_log(logger, logging.WARNING),
+    before=before_log(logger, LOG_LEVEL_INFO),
+    after=after_log(logger, LOG_LEVEL_WARNING),
 )
 def init(db_engine: Engine) -> None:
     """Wait for the local test database to accept connections.
@@ -75,18 +78,19 @@ def init(db_engine: Engine) -> None:
         # Try to create session to check if DB is awake
         with Session(db_engine) as session:
             session.exec(select(1))
-    except Exception as e:
-        logger.error(e)
-        raise e
+    except Exception:
+        logger.exception("test_database_wait_failed")
+        raise
 
 
 def main() -> None:
     """Run backend test database startup checks."""
-    logger.info("Initializing service")
+    setup_logging()
+    logger.info("test_database_initializing")
     engine = create_engine(_build_test_database_url())
     init(engine)
     engine.dispose()
-    logger.info("Service finished initializing")
+    logger.info("test_database_initialized")
 
 
 if __name__ == "__main__":

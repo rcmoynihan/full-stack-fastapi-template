@@ -1,4 +1,3 @@
-app = "myapp-frontend-staging"
 primary_region = "iad"
 
 [[http_service.checks]]

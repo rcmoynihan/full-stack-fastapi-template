@@ -87,7 +87,7 @@ mailcatcher dependencies. To run Playwright from your host instead, start both
 backend and mailcatcher first:
 
 ```bash
-docker compose up -d --wait backend mailcatcher
+just dev
 ```
 
 Then run the tests:
@@ -95,6 +95,10 @@ Then run the tests:
 ```bash
 bunx playwright test
 ```
+
+Host-run Playwright defaults to `MAILCATCHER_HOST=http://localhost:1080`.
+Override that environment variable only when mailcatcher is exposed somewhere
+else.
 
 You can also run your tests in UI mode to see the browser and interact with it running:
 
@@ -105,7 +109,7 @@ bunx playwright test --ui
 To stop and remove the Docker Compose stack and clean the data created in tests, use the following command:
 
 ```bash
-docker compose down -v
+just down
 ```
 
 To update the tests, navigate to the tests directory and modify the existing test files or add new ones as needed.

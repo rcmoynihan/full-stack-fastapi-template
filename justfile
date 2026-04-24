@@ -4,20 +4,20 @@ default:
 
 # Start the local stack with Docker Compose.
 dev:
-    docker compose up -d --wait
+    bash scripts/docker-compose-local.sh up -d --wait
 
 # Start the local stack with Docker Compose watch for backend/container changes.
 dev-watch:
-    docker compose -f compose.yml -f compose.override.yml -f compose.watch.yml watch
+    bash scripts/docker-compose-local.sh -f compose.yml -f compose.override.yml -f compose.watch.yml watch
 
 # Stop local services.
 down:
-    docker compose down
+    bash scripts/docker-compose-local.sh down
 
 # Reset the local database, then run migrations and bootstrap data.
 dev-reset-db:
-    docker compose down -v --remove-orphans
-    docker compose up -d --wait db
+    bash scripts/docker-compose-local.sh down -v --remove-orphans
+    bash scripts/docker-compose-local.sh up -d --wait db
     cd backend && uv run bash scripts/prestart.sh
 
 # Run the backend development server on the host.
@@ -94,7 +94,7 @@ check:
         local service="$1"
         local container_id
 
-        container_id="$(docker compose ps --status running -q "$service" 2>/dev/null || true)"
+        container_id="$(bash "$PROJECT_ROOT/scripts/docker-compose-local.sh" ps --status running -q "$service" 2>/dev/null || true)"
         [ -n "$container_id" ]
     }
 
@@ -102,7 +102,7 @@ check:
         local service="$1"
         local container_id
 
-        container_id="$(docker compose ps -aq "$service" 2>/dev/null || true)"
+        container_id="$(bash "$PROJECT_ROOT/scripts/docker-compose-local.sh" ps -aq "$service" 2>/dev/null || true)"
         if ! is_service_running "$service"; then
             SERVICES_TO_STOP="$SERVICES_TO_STOP $service"
             if [ -z "$container_id" ]; then
@@ -113,10 +113,10 @@ check:
 
     cleanup() {
         if [ -n "$SERVICES_TO_STOP" ]; then
-            docker compose stop $SERVICES_TO_STOP
+            bash "$PROJECT_ROOT/scripts/docker-compose-local.sh" stop $SERVICES_TO_STOP
         fi
         if [ -n "$SERVICES_TO_REMOVE" ]; then
-            docker compose rm -f $SERVICES_TO_REMOVE
+            bash "$PROJECT_ROOT/scripts/docker-compose-local.sh" rm -f $SERVICES_TO_REMOVE
         fi
         if [ -n "$FRONTEND_BUILD_DIR" ]; then
             rm -rf "$FRONTEND_BUILD_DIR"
@@ -126,8 +126,8 @@ check:
     export DATABASE_URL=""
     export DATABASE_URL_DIRECT=""
     export ENVIRONMENT="local"
-    export POSTGRES_SERVER="localhost"
-    export POSTGRES_PORT="5432"
+    export POSTGRES_SERVER="127.0.0.1"
+    export POSTGRES_PORT="${POSTGRES_HOST_PORT:-55432}"
     export POSTGRES_DB="app"
     export POSTGRES_USER="postgres"
     export POSTGRES_PASSWORD="changethis"
@@ -142,7 +142,7 @@ check:
     (cd "$PROJECT_ROOT/frontend" && bun install --frozen-lockfile)
 
     echo "=== Local service setup ==="
-    docker compose up -d --wait db mailcatcher
+    bash "$PROJECT_ROOT/scripts/docker-compose-local.sh" up -d --wait db mailcatcher
     (cd "$PROJECT_ROOT/backend" && uv run bash scripts/prestart.sh)
 
     echo "=== Backend lint + typecheck ==="
@@ -183,4 +183,5 @@ seed-demo:
 
 # Run e2e tests against the Docker Compose stack.
 test-e2e:
-    docker compose run --rm playwright bunx playwright test
+    bash scripts/docker-compose-local.sh build prestart backend playwright
+    bash scripts/docker-compose-local.sh --profile test run --rm playwright bunx playwright test

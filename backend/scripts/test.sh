@@ -5,8 +5,8 @@ set -euo pipefail
 # Backend tests must never inherit deployment database URLs from the shell or
 # from the root .env file. Export an explicit local URL so Pydantic settings
 # cannot fall back to DATABASE_URL/DATABASE_URL_DIRECT values in dotenv.
-: "${POSTGRES_SERVER:=localhost}"
-: "${POSTGRES_PORT:=5432}"
+: "${POSTGRES_SERVER:=127.0.0.1}"
+: "${POSTGRES_PORT:=55432}"
 : "${POSTGRES_DB:=app}"
 : "${POSTGRES_USER:=postgres}"
 : "${POSTGRES_PASSWORD:=changethis}"
@@ -26,6 +26,7 @@ export POSTGRES_PASSWORD
 export DATABASE_URL="postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_SERVER}:${POSTGRES_PORT}/${POSTGRES_DB}"
 export DATABASE_URL_DIRECT="$DATABASE_URL"
 
+python -m app.commands.ensure_database
 python app/tests_pre_start.py
 
 set -x

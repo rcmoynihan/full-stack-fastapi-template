@@ -139,8 +139,8 @@ jobs:
         run: |
           STAGING_BACKEND_APP="${STAGING_BACKEND_APP:?Set STAGING_BACKEND_APP in the staging GitHub environment variables}"
           STAGING_FRONTEND_APP="${STAGING_FRONTEND_APP:?Set STAGING_FRONTEND_APP in the staging GitHub environment variables}"
-          BACKEND_URL="${STAGING_BACKEND_URL:-https://${STAGING_BACKEND_APP}.fly.dev}"
-          FRONTEND_URL="${STAGING_FRONTEND_URL:-https://${STAGING_FRONTEND_APP}.fly.dev}"
+          BACKEND_URL="${STAGING_BACKEND_URL:?Set STAGING_BACKEND_URL in the staging GitHub environment variables}"
+          FRONTEND_URL="${STAGING_FRONTEND_URL:?Set STAGING_FRONTEND_URL in the staging GitHub environment variables}"
           bash scripts/smoke_backend.sh "$BACKEND_URL"
           bash scripts/smoke_frontend.sh "$FRONTEND_URL" "$BACKEND_URL"
         env:

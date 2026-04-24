@@ -3,8 +3,8 @@ set -euo pipefail
 
 # Tests must use the local Docker Compose Postgres by default. Do not let a
 # developer, dotenv, or deployment DATABASE_URL redirect destructive tests.
-export POSTGRES_SERVER="${POSTGRES_SERVER:-localhost}"
-export POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+export POSTGRES_SERVER="${POSTGRES_SERVER:-127.0.0.1}"
+export POSTGRES_PORT="${POSTGRES_PORT:-55432}"
 export POSTGRES_DB="${POSTGRES_DB:-app}"
 export POSTGRES_USER="${POSTGRES_USER:-postgres}"
 export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-changethis}"

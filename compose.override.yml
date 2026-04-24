@@ -2,7 +2,7 @@ services:
   db:
     restart: "no"
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"
 
   adminer:
     image: adminer
@@ -53,6 +53,8 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile.playwright
+    profiles:
+      - test
     ipc: host
     depends_on:
       - backend

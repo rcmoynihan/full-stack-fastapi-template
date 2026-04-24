@@ -60,17 +60,12 @@ production.
 From Supabase, collect two SSL-enabled connection strings:
 
 - `DATABASE_URL`: app runtime connection using the runtime role. Use the
-  session-mode pooler on port `5432` or a direct connection. Do not use
-  transaction-mode pooling on port `6543` for SQLAlchemy web traffic.
+  session-mode pooler on port `5432`. Do not use transaction-mode pooling on
+  port `6543` for SQLAlchemy web traffic.
 - `DATABASE_URL_DIRECT`: direct connection for Alembic migrations using the
   migration role.
 
 Both URLs must include `sslmode=require`.
-
-Verify Fly-to-Supabase connectivity before the first deploy. Direct Supabase
-connections can require IPv6; if the selected Fly region cannot connect
-reliably, use the supported Supabase pooler path for runtime traffic and keep
-`DATABASE_URL_DIRECT` for migrations.
 
 ## Connection Budget
 
@@ -97,11 +92,13 @@ only after checking the Supabase connection limit and load-test results.
 
 ## One-Time Fly Setup
 
-Create four runtime apps and two registry apps. Pick a project-specific app
-slug first; the `myapp-*` values below are examples, not finalized app names.
+Create four runtime apps and two registry apps. Pick a globally unique
+project-specific app slug once and use it everywhere. The commands below use the
+`APP_SLUG` template variable so the repo has one rename surface instead of
+checked-in Fly app name placeholders.
 
 ```bash
-APP_SLUG="myapp"
+APP_SLUG="<unique-app-slug>"
 FLY_ORG="<org>"
 
 fly apps create "${APP_SLUG}-backend-staging" --org "$FLY_ORG"
@@ -125,9 +122,8 @@ Backend configs should define a migration-only `release_command`. Frontend
 configs should pass runtime public config through environment variables that the
 container writes to `env.js` at startup.
 
-The checked-in `fly/*.toml` files may contain template `app = "myapp-*"` values.
-Replace those values for manual Fly commands, or rely on CI passing the target
-app explicitly with `fly deploy --app "$APP_NAME"`.
+The checked-in `fly/*.toml` files intentionally omit `app = ...`. CI and manual
+commands must pass the target app explicitly with `fly deploy --app "$APP_NAME"`.
 
 ## Fly Secrets
 
@@ -135,12 +131,14 @@ Set backend secrets per environment. Pydantic settings read environment variable
 directly; do not add an application prefix.
 
 ```bash
-fly secrets set -a myapp-backend-staging \
+APP_SLUG="<unique-app-slug>"
+
+fly secrets set -a "${APP_SLUG}-backend-staging" \
   ENVIRONMENT="staging" \
   PROJECT_NAME="Full Stack FastAPI Project" \
-  FRONTEND_HOST="https://app-staging.example.com" \
-  BACKEND_CORS_ORIGINS="https://app-staging.example.com" \
-  DATABASE_URL="postgresql+psycopg://app_runtime:<runtime-password>@<host>:5432/postgres?sslmode=require" \
+  FRONTEND_HOST="https://${APP_SLUG}-frontend-staging.fly.dev" \
+  BACKEND_CORS_ORIGINS="https://${APP_SLUG}-frontend-staging.fly.dev" \
+  DATABASE_URL="postgresql+psycopg://app_runtime:<runtime-password>@<pooler-host>:5432/postgres?sslmode=require" \
   DATABASE_URL_DIRECT="postgresql+psycopg://app_migrator:<migration-password>@<direct-host>:5432/postgres?sslmode=require" \
   SECRET_KEY="<generated-secret>" \
   FIRST_SUPERUSER="admin@example.com" \
@@ -153,7 +151,7 @@ fly secrets set -a myapp-backend-staging \
 Set optional backend secrets when the service is configured to use them:
 
 ```bash
-fly secrets set -a myapp-backend-staging \
+fly secrets set -a "${APP_SLUG}-backend-staging" \
   SMTP_HOST="<smtp-host>" \
   SMTP_USER="<smtp-user>" \
   SMTP_PASSWORD="<smtp-password>" \
@@ -164,8 +162,8 @@ fly secrets set -a myapp-backend-staging \
 Set frontend runtime config separately:
 
 ```bash
-fly secrets set -a myapp-frontend-staging \
-  API_BASE_URL="https://api-staging.example.com"
+fly secrets set -a "${APP_SLUG}-frontend-staging" \
+  API_BASE_URL="https://${APP_SLUG}-backend-staging.fly.dev"
 ```
 
 Repeat the same shape for production with production hosts, database URLs, and
@@ -182,17 +180,13 @@ image carries the revision it was built from.
 
 ## Domains
 
-Fly provides `*.fly.dev` hostnames by default. Add custom domains after the apps
-exist:
+The template uses the Fly-provided `*.fly.dev` hostnames as the canonical
+staging and production hostnames. Set `FRONTEND_HOST`,
+`BACKEND_CORS_ORIGINS`, frontend `API_BASE_URL`, and GitHub smoke-test URL
+variables to those hostnames.
 
-```bash
-fly certs add -a myapp-frontend-staging app-staging.example.com
-fly certs add -a myapp-backend-staging api-staging.example.com
-fly certs add -a myapp-frontend-prod app.example.com
-fly certs add -a myapp-backend-prod api.example.com
-```
-
-Create DNS records as instructed by `fly certs show`.
+Custom domains are application-specific work and are not part of the default
+deployment path.
 
 ## CI/CD
 
@@ -212,6 +206,14 @@ Required GitHub Actions secrets:
 - `FLY_API_TOKEN_PROD`
 - Any release or coverage service tokens used by the quality gate.
 
+Create GitHub environments named `staging` and `production`. Require reviewer
+approval for `production`; `staging` can deploy automatically from `master`. Use
+separate Fly tokens per environment:
+
+- `FLY_API_TOKEN_BUILDS`: token scoped to push images to the two registry apps.
+- `FLY_API_TOKEN_STAGING`: token scoped to the staging runtime apps.
+- `FLY_API_TOKEN_PROD`: token scoped to the production runtime apps.
+
 Required GitHub Actions variables:
 
 - `BACKEND_REGISTRY_APP`
@@ -220,17 +222,12 @@ Required GitHub Actions variables:
 - `STAGING_FRONTEND_APP`
 - `PROD_BACKEND_APP`
 - `PROD_FRONTEND_APP`
-
-Optional GitHub Actions variables:
-
 - `STAGING_BACKEND_URL`
 - `STAGING_FRONTEND_URL`
 
 `BACKEND_REGISTRY_APP` and `FRONTEND_REGISTRY_APP` should be repository-level
 variables because the build jobs do not run in a deployment environment.
 Runtime app names and public smoke-test URLs can be environment-level variables.
-If `STAGING_BACKEND_URL` or `STAGING_FRONTEND_URL` is omitted, CI derives the
-default Fly hostname from the corresponding staging app variable.
 
 Promote a successful staging run to production with:
 
@@ -241,6 +238,13 @@ gh workflow run deploy-production.yml -f ci_cd_run_id=<successful-ci-cd-run-id>
 The deployment workflow must use GitHub-hosted runners. Remote-server deploys,
 build-on-server deploys, and the local Compose stack are not supported
 deployment targets.
+
+Sentry is the default monitoring integration. The backend reports runtime
+environment and release metadata through Sentry, and `/api/v1/utils/health-check/`
+returns `git_sha` and `environment` for smoke checks and release triage.
+
+Email delivery is BYO SMTP. Configure `SMTP_HOST`, credentials, and
+`EMAILS_FROM_EMAIL` in Fly secrets when outbound email is required.
 
 ## Manual Deploys
 
@@ -276,9 +280,3 @@ code that remains compatible with the already-applied schema.
 For data loss or corruption, restore the database through Supabase point-in-time
 recovery or the backup/restore process available on the active Supabase plan.
 Validate the restored database before pointing production traffic at it.
-
-## Legacy Environment Cutover
-
-Any old remote-server staging environment is transition-only. Do not add new
-deploy instructions for it, and remove the old environment once Fly staging is
-provisioned and validated.

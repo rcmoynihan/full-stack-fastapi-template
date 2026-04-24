@@ -1,4 +1,3 @@
-app = "myapp-backend-prod"
 primary_region = "iad"
 
 [build]

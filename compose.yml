@@ -32,7 +32,7 @@ services:
     environment:
       ENVIRONMENT: local
       POSTGRES_SERVER: db
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis}
@@ -53,7 +53,7 @@ services:
     environment:
       ENVIRONMENT: local
       POSTGRES_SERVER: db
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB:-app}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changethis}
