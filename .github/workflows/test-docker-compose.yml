@@ -20,14 +20,14 @@ jobs:
         run: bash scripts/install-supabase-cli.sh
       - name: Start Supabase Auth
         run: bash scripts/supabase-local.sh start
-      - run: docker compose build
-      - run: docker compose down -v --remove-orphans
-      - run: docker compose up -d --wait backend frontend
+      - run: bash scripts/docker-compose-local.sh build
+      - run: bash scripts/docker-compose-local.sh down -v --remove-orphans
+      - run: bash scripts/docker-compose-local.sh up -d --wait backend frontend
       - name: Test backend is up
         run: curl --fail http://localhost:8000/api/v1/utils/health-check/
       - name: Test frontend is up
         run: curl --fail http://localhost:5173
-      - run: docker compose down -v --remove-orphans
+      - run: bash scripts/docker-compose-local.sh down -v --remove-orphans
         if: always()
       - name: Stop Supabase Auth
         run: bash scripts/supabase-local.sh stop

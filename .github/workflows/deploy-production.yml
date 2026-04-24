@@ -94,7 +94,7 @@ jobs:
       - name: Deploy backend to production
         run: |
           PROD_BACKEND_APP="${PROD_BACKEND_APP:?Set PROD_BACKEND_APP in the production GitHub environment variables}"
-          fly deploy \
+          flyctl deploy \
             --app "$PROD_BACKEND_APP" \
             --config fly/backend-prod.toml \
             --image "${{ steps.digests.outputs.backend_digest }}"
@@ -104,7 +104,7 @@ jobs:
       - name: Deploy frontend to production
         run: |
           PROD_FRONTEND_APP="${PROD_FRONTEND_APP:?Set PROD_FRONTEND_APP in the production GitHub environment variables}"
-          fly deploy \
+          flyctl deploy \
             --app "$PROD_FRONTEND_APP" \
             --config fly/frontend-prod.toml \
             --image "${{ steps.digests.outputs.frontend_digest }}"

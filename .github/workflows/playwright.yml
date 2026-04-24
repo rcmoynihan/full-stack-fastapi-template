@@ -68,13 +68,13 @@ jobs:
     - run: bun ci
       working-directory: frontend
     - run: bash scripts/check-client-drift.sh
-    - run: docker compose build
-    - run: docker compose down -v --remove-orphans
+    - run: bash scripts/docker-compose-local.sh build
+    - run: bash scripts/docker-compose-local.sh down -v --remove-orphans
     - name: Start Supabase Auth
       run: bash scripts/supabase-local.sh start
     - name: Run Playwright tests
-      run: docker compose run --rm playwright bunx playwright test --fail-on-flaky-tests --trace=retain-on-failure --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
-    - run: docker compose down -v --remove-orphans
+      run: bash scripts/docker-compose-local.sh run --rm playwright bunx playwright test --fail-on-flaky-tests --trace=retain-on-failure --shard=${{ matrix.shardIndex }}/${{ matrix.shardTotal }}
+    - run: bash scripts/docker-compose-local.sh down -v --remove-orphans
       if: always()
     - name: Stop Supabase Auth
       run: bash scripts/supabase-local.sh stop

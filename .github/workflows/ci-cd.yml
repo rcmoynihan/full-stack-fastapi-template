@@ -35,7 +35,7 @@ jobs:
 
   build-backend:
     needs: quality-gate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.ENABLE_FLY_DEPLOY == 'true'
     runs-on: ubuntu-latest
     outputs:
       image_digest: ${{ steps.push.outputs.digest }}
@@ -45,7 +45,7 @@ jobs:
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
       - name: Auth to Fly registry
-        run: fly auth docker
+        run: flyctl auth docker
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BUILDS }}
       - name: Build and push backend image
@@ -73,7 +73,7 @@ jobs:
 
   build-frontend:
     needs: quality-gate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master' && vars.ENABLE_FLY_DEPLOY == 'true'
     runs-on: ubuntu-latest
     outputs:
       image_digest: ${{ steps.push.outputs.digest }}
@@ -83,7 +83,7 @@ jobs:
       - name: Set up flyctl
         uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
       - name: Auth to Fly registry
-        run: fly auth docker
+        run: flyctl auth docker
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BUILDS }}
       - name: Build and push frontend image
@@ -120,7 +120,7 @@ jobs:
       - name: Deploy backend to staging
         run: |
           STAGING_BACKEND_APP="${STAGING_BACKEND_APP:?Set STAGING_BACKEND_APP in the staging GitHub environment variables}"
-          fly deploy \
+          flyctl deploy \
             --app "$STAGING_BACKEND_APP" \
             --config fly/backend-staging.toml \
             --image "${{ needs.build-backend.outputs.image_digest }}"
@@ -130,7 +130,7 @@ jobs:
       - name: Deploy frontend to staging
         run: |
           STAGING_FRONTEND_APP="${STAGING_FRONTEND_APP:?Set STAGING_FRONTEND_APP in the staging GitHub environment variables}"
-          fly deploy \
+          flyctl deploy \
             --app "$STAGING_FRONTEND_APP" \
             --config fly/frontend-staging.toml \
             --image "${{ needs.build-frontend.outputs.image_digest }}"
