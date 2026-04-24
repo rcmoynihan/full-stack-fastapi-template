@@ -1,13 +1,12 @@
-#! /usr/bin/env bash
-
+#!/usr/bin/env bash
 set -e
 set -x
 
-# Let the DB start
+# Local development prestart: wait for DB, migrate, bootstrap.
+# In production, migrations run via release command scripts/migrate.sh.
+
 python app/backend_pre_start.py
 
-# Run migrations
 alembic upgrade head
 
-# Create initial data in DB
-python app/initial_data.py
+python -m app.commands.create_superuser

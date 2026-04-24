@@ -1,0 +1,14 @@
+# Optional Docker Compose watch overlay for hot-reload development.
+
+services:
+  backend:
+    develop:
+      watch:
+        - path: ./backend
+          action: sync
+          target: /app/backend
+          ignore:
+            - ./backend/.venv
+            - .venv
+        - path: ./backend/pyproject.toml
+          action: rebuild

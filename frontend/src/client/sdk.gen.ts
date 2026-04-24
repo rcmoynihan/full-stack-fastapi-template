@@ -435,7 +435,13 @@ export class UsersService {
 export class UtilsService {
     /**
      * Test Email
-     * Test emails.
+     * Send a test email to the supplied address.
+     *
+     * Args:
+     * email_to: Recipient email address.
+     *
+     * Returns:
+     * Message confirming the email was sent.
      * @param data The data for the request.
      * @param data.emailTo
      * @returns Message Successful Response
@@ -456,7 +462,14 @@ export class UtilsService {
     
     /**
      * Health Check
-     * @returns boolean Successful Response
+     * Check application health and database connectivity.
+     *
+     * Returns:
+     * Health status with deployment metadata.
+     *
+     * Raises:
+     * HTTPException: Raised with 503 when the database check fails.
+     * @returns HealthCheck Successful Response
      * @throws ApiError
      */
     public static healthCheck(): CancelablePromise<UtilsHealthCheckResponse> {

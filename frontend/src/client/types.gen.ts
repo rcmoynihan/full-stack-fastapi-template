@@ -9,6 +9,16 @@ export type Body_login_login_access_token = {
     client_secret?: (string | null);
 };
 
+/**
+ * Health check response with runtime and database status.
+ */
+export type HealthCheck = {
+    status: "ok";
+    database: "ok";
+    git_sha: string;
+    environment: string;
+};
+
 export type HTTPValidationError = {
     detail?: Array<ValidationError>;
 };
@@ -237,4 +247,4 @@ export type UtilsTestEmailData = {
 
 export type UtilsTestEmailResponse = (Message);
 
-export type UtilsHealthCheckResponse = (boolean);
+export type UtilsHealthCheckResponse = (HealthCheck);

@@ -10,10 +10,11 @@ import ReactDOM from "react-dom/client"
 import { ApiError, OpenAPI } from "./client"
 import { ThemeProvider } from "./components/theme-provider"
 import { Toaster } from "./components/ui/sonner"
+import { getApiBaseUrl } from "./config"
 import "./index.css"
 import { routeTree } from "./routeTree.gen"
 
-OpenAPI.BASE = import.meta.env.VITE_API_URL
+OpenAPI.BASE = getApiBaseUrl()
 OpenAPI.TOKEN = async () => {
   return localStorage.getItem("access_token") || ""
 }

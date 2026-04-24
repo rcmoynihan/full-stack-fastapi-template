@@ -1,6 +1,5 @@
-import secrets
 import warnings
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import (
     AnyUrl,
@@ -12,10 +11,17 @@ from pydantic import (
     model_validator,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing_extensions import Self
 
 
 def parse_cors(v: Any) -> list[str] | str:
+    """Parse CORS origins from a comma-delimited string or list.
+
+    Args:
+        v: Raw CORS value loaded from settings.
+
+    Returns:
+        Parsed origins for Pydantic validation.
+    """
     if isinstance(v, str) and not v.startswith("["):
         return [i.strip() for i in v.split(",") if i.strip()]
     elif isinstance(v, list | str):
@@ -24,14 +30,20 @@ def parse_cors(v: Any) -> list[str] | str:
 
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables and local `.env`.
+
+    Local development may use the repository `.env` file. Staging and production
+    should provide settings through environment variables or platform secrets.
+    """
+
     model_config = SettingsConfigDict(
-        # Use top level .env file (one level above ./backend/)
+        # .env is for local development only. Deployed environments use env vars.
         env_file="../.env",
         env_ignore_empty=True,
         extra="ignore",
     )
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = "changethis-dev-only"
     # 60 minutes * 24 hours * 8 days = 8 days
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     FRONTEND_HOST: str = "http://localhost:5173"
@@ -48,17 +60,34 @@ class Settings(BaseSettings):
             self.FRONTEND_HOST
         ]
 
-    PROJECT_NAME: str
+    PROJECT_NAME: str = "Full Stack FastAPI Project"
     SENTRY_DSN: HttpUrl | None = None
-    POSTGRES_SERVER: str
+
+    DATABASE_URL: str | None = None
+    DATABASE_URL_DIRECT: str | None = None
+
+    POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str
+    POSTGRES_USER: str = "postgres"
     POSTGRES_PASSWORD: str = ""
-    POSTGRES_DB: str = ""
+    POSTGRES_DB: str = "app"
+
+    WEB_CONCURRENCY: int = 1
+    SQLALCHEMY_POOL_SIZE: int = 2
+    SQLALCHEMY_MAX_OVERFLOW: int = 0
+    SQLALCHEMY_POOL_TIMEOUT: int = 30
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
+    def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn | str:
+        """Database URL used by the application.
+
+        Returns:
+            A PostgreSQL URL, preferring DATABASE_URL over component settings.
+        """
+        if self.DATABASE_URL:
+            return self._normalize_postgres_url(self.DATABASE_URL)
+
         return PostgresDsn.build(
             scheme="postgresql+psycopg",
             username=self.POSTGRES_USER,
@@ -67,6 +96,39 @@ class Settings(BaseSettings):
             port=self.POSTGRES_PORT,
             path=self.POSTGRES_DB,
         )
+
+    @property
+    def SQLALCHEMY_MIGRATION_DATABASE_URI(self) -> PostgresDsn | str:
+        """Database URL used by Alembic migrations.
+
+        Returns:
+            A direct PostgreSQL URL when DATABASE_URL_DIRECT is configured,
+            otherwise the application database URL.
+        """
+        if self.DATABASE_URL_DIRECT:
+            return self._normalize_postgres_url(self.DATABASE_URL_DIRECT)
+        return self.SQLALCHEMY_DATABASE_URI
+
+    def _normalize_postgres_url(self, raw_url: str) -> str:
+        """Normalize managed Postgres URLs for SQLAlchemy and SSL.
+
+        Args:
+            raw_url: Raw PostgreSQL connection URL.
+
+        Returns:
+            URL with the psycopg driver prefix and required SSL for deployments.
+        """
+        url = raw_url
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgresql+psycopg://", 1)
+        elif url.startswith("postgresql://") and "+psycopg" not in url:
+            url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+
+        if self.ENVIRONMENT != "local" and "sslmode=" not in url.lower():
+            separator = "&" if "?" in url else "?"
+            url = f"{url}{separator}sslmode=require"
+
+        return url
 
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
@@ -94,11 +156,19 @@ class Settings(BaseSettings):
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
 
+    GIT_SHA: str = "unknown"
+
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
-        if value == "changethis":
+        """Warn locally and fail deployments when a secret is missing/default.
+
+        Args:
+            var_name: Setting name used in the diagnostic message.
+            value: Secret value to validate.
+        """
+        if not value or value in {"changethis", "changethis-dev-only"}:
             message = (
-                f'The value of {var_name} is "changethis", '
-                "for security, please change it, at least for deployments."
+                f"The value of {var_name} is missing or set to a development default; "
+                "for security, set a real value for deployments."
             )
             if self.ENVIRONMENT == "local":
                 warnings.warn(message, stacklevel=1)
@@ -107,11 +177,19 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
+        """Validate deployment-only security requirements.
+
+        Returns:
+            Validated settings instance.
+        """
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
-        self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
+        if not self.DATABASE_URL:
+            self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
         self._check_default_secret(
             "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD
         )
+        if self.ENVIRONMENT != "local" and not self.DATABASE_URL:
+            raise ValueError("DATABASE_URL must be set in staging/production.")
 
         return self
 

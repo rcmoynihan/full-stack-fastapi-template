@@ -5,14 +5,31 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
+from app.core.logging import setup_logging
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
+    """Create stable operation IDs for generated API clients.
+
+    Args:
+        route: FastAPI route being documented.
+
+    Returns:
+        Unique operation ID built from the route tag and name.
+    """
     return f"{route.tags[0]}-{route.name}"
 
 
+setup_logging()
+
 if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":
-    sentry_sdk.init(dsn=str(settings.SENTRY_DSN), enable_tracing=True)
+    sentry_sdk.init(
+        dsn=str(settings.SENTRY_DSN),
+        enable_tracing=True,
+        environment=settings.ENVIRONMENT,
+        release=settings.GIT_SHA,
+        traces_sample_rate=0.1,
+    )
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

@@ -1,4 +1,3 @@
-# Stage 0, "build-stage", based on Bun, to build and compile the frontend
 FROM oven/bun:1 AS build-stage
 
 WORKDIR /app
@@ -9,18 +8,21 @@ COPY frontend/package.json /app/frontend/
 
 WORKDIR /app/frontend
 
-RUN bun install
+RUN bun install --frozen-lockfile
 
 COPY ./frontend /app/frontend
-ARG VITE_API_URL
 
 RUN bun run build
 
+FROM nginx:1-alpine
 
-# Stage 1, based on Nginx, to have only the compiled app, ready for production with Nginx
-FROM nginx:1
+RUN apk add --no-cache jq && mkdir -p /etc/nginx/extra-conf.d
 
 COPY --from=build-stage /app/frontend/dist/ /usr/share/nginx/html
 
 COPY ./frontend/nginx.conf /etc/nginx/conf.d/default.conf
 COPY ./frontend/nginx-backend-not-found.conf /etc/nginx/extra-conf.d/backend-not-found.conf
+COPY ./frontend/docker-entrypoint.sh /docker-entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh
+
+ENTRYPOINT ["/docker-entrypoint.sh"]

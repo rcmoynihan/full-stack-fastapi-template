@@ -1,10 +1,12 @@
-FROM python:3.10
+FROM python:3.14-slim
 
 ENV PYTHONUNBUFFERED=1
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
 
 # Install uv
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#installing-uv
-COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.11.2 /uv /uvx /bin/
 
 # Compile bytecode
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#compiling-bytecode
@@ -42,4 +44,4 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 WORKDIR /app/backend/
 
-CMD ["fastapi", "run", "--workers", "4", "app/main.py"]
+CMD ["sh", "-c", "fastapi run --workers ${WEB_CONCURRENCY:-1} app/main.py"]

@@ -12,8 +12,9 @@ from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
 
 
-@pytest.fixture(scope="session", autouse=True)
-def db() -> Generator[Session, None, None]:
+@pytest.fixture(scope="session")
+def db() -> Generator[Session]:
+    """Provide a database session for tests that need persistence."""
     with Session(engine) as session:
         init_db(session)
         yield session
@@ -25,7 +26,9 @@ def db() -> Generator[Session, None, None]:
 
 
 @pytest.fixture(scope="module")
-def client() -> Generator[TestClient, None, None]:
+def client(db: Session) -> Generator[TestClient]:
+    """Provide a FastAPI test client after database bootstrap."""
+    _ = db
     with TestClient(app) as c:
         yield c
 

@@ -1,0 +1,31 @@
+app = "myapp-backend-staging"
+primary_region = "iad"
+
+[build]
+  # Image provided by CI:
+  # fly deploy --image <registry-ref>@sha256:<digest>
+
+[deploy]
+  release_command = "bash scripts/migrate.sh"
+  release_command_timeout = "10m"
+  strategy = "bluegreen"
+
+[[http_service.checks]]
+  grace_period = "10s"
+  interval = "15s"
+  method = "GET"
+  path = "/api/v1/utils/health-check/"
+  port = 8000
+  timeout = "5s"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

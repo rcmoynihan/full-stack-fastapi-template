@@ -1,65 +1,115 @@
-# See https://pre-commit.com for more information
-# See https://pre-commit.com/hooks.html for more hooks
+default_stages: [pre-commit]
+
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c # v6.0.0
     hooks:
       - id: check-added-large-files
+        stages: [pre-commit]
       - id: check-toml
+        stages: [pre-commit]
       - id: check-yaml
         args:
           - --unsafe
+        stages: [pre-commit]
       - id: end-of-file-fixer
         exclude: |
             (?x)^(
                 frontend/src/client/.*|
                 backend/app/email-templates/build/.*
             )$
+        stages: [pre-commit]
       - id: trailing-whitespace
         exclude: ^frontend/src/client/.*
+        stages: [pre-commit]
+
   - repo: local
     hooks:
-      - id: local-biome-check
-        name: biome check
-        entry: npm run lint
+      - id: biome-fix
+        name: biome check (fix)
+        entry: bash -c 'cd frontend && bun run lint'
         language: system
-        types: [text]
+        pass_filenames: false
         files: ^frontend/
+        stages: [pre-commit]
 
-      - id: local-ruff-check
+      - id: biome-ci
+        name: biome ci
+        entry: bash -c 'cd frontend && bun run lint:ci'
+        language: system
+        pass_filenames: false
+        files: ^frontend/
+        stages: [pre-push]
+
+      - id: ruff-fix
+        name: ruff check (fix)
+        entry: bash -c 'cd backend && uv run ruff check app --force-exclude --fix --exit-non-zero-on-fix'
+        require_serial: true
+        language: unsupported
+        pass_filenames: false
+        files: ^backend/.*\.py$
+        stages: [pre-commit]
+
+      - id: ruff-format-fix
+        name: ruff format (fix)
+        entry: bash -c 'cd backend && uv run ruff format app --force-exclude --exit-non-zero-on-format'
+        require_serial: true
+        language: unsupported
+        pass_filenames: false
+        files: ^backend/.*\.py$
+        stages: [pre-commit]
+
+      - id: ruff-check
         name: ruff check
-        entry: uv run ruff check --force-exclude --fix --exit-non-zero-on-fix
+        entry: bash -c 'cd backend && uv run ruff check app --force-exclude'
         require_serial: true
         language: unsupported
-        types: [python]
+        pass_filenames: false
+        files: ^backend/.*\.py$
+        stages: [pre-push]
 
-      - id: local-ruff-format
-        name: ruff format
-        entry: uv run ruff format --force-exclude --exit-non-zero-on-format
+      - id: ruff-format-check
+        name: ruff format check
+        entry: bash -c 'cd backend && uv run ruff format app --force-exclude --check'
         require_serial: true
         language: unsupported
-        types: [python]
+        pass_filenames: false
+        files: ^backend/.*\.py$
+        stages: [pre-push]
 
-      - id: local-mypy
+      - id: mypy
         name: mypy check
-        entry: uv run mypy backend/app
+        entry: bash -c 'cd backend && uv run mypy app'
         require_serial: true
         language: unsupported
         pass_filenames: false
+        files: ^backend/.*\.py$
+        stages: [pre-push]
 
-      - id: local-ty
+      - id: ty
         name: ty check
-        entry: uv run ty check backend/app
+        entry: bash -c 'cd backend && uv run ty check app'
         require_serial: true
         language: unsupported
         pass_filenames: false
+        files: ^backend/.*\.py$
+        stages: [pre-push]
 
       - id: generate-frontend-sdk
         name: Generate Frontend SDK
         entry: bash ./scripts/generate-client.sh
         pass_filenames: false
         language: unsupported
-        files: ^backend/.*$|^scripts/generate-client\.sh$
+        files: ^backend/.*$|^scripts/generate-client\.sh$|^frontend/openapi-ts\.config\.ts$
+        stages: [pre-commit]
+
+      - id: client-drift
+        name: Check generated frontend SDK drift
+        entry: bash ./scripts/check-client-drift.sh
+        pass_filenames: false
+        language: unsupported
+        files: ^backend/.*$|^scripts/check-client-drift\.sh$|^scripts/generate-client\.sh$|^frontend/openapi-ts\.config\.ts$|^frontend/openapi\.json$|^frontend/src/client/.*
+        stages: [pre-push]
 
       - id: add-release-date
         language: unsupported
@@ -67,3 +117,4 @@ repos:
         entry: uv run python scripts/add_latest_release_date.py
         files: ^release-notes\.md$
         pass_filenames: false
+        stages: [pre-commit]

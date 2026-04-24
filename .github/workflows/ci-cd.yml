@@ -1,0 +1,150 @@
+name: CI/CD
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    types:
+      - opened
+      - synchronize
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+      - name: Install uv
+        uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+      - name: Install just
+        run: sudo apt-get update && sudo apt-get install -y just
+      - name: Run read-only quality gate
+        run: just check
+
+  build-backend:
+    needs: quality-gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+      - name: Auth to Fly registry
+        run: fly auth docker
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BUILDS }}
+      - name: Build and push backend image
+        id: push
+        run: |
+          GIT_SHA="${GITHUB_SHA}"
+          BACKEND_REGISTRY_APP="${BACKEND_REGISTRY_APP:?Set BACKEND_REGISTRY_APP in GitHub repository variables}"
+          TAG="registry.fly.io/${BACKEND_REGISTRY_APP}:git-${GIT_SHA::8}"
+          docker build \
+            --build-arg GIT_SHA="${GIT_SHA}" \
+            -t "$TAG" \
+            -f backend/Dockerfile .
+          docker push "$TAG"
+          DIGEST="$(docker image inspect --format='{{index .RepoDigests 0}}' "$TAG")"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+        env:
+          BACKEND_REGISTRY_APP: ${{ vars.BACKEND_REGISTRY_APP }}
+      - name: Save backend digest artifact
+        run: echo "${{ steps.push.outputs.digest }}" > backend-digest.txt
+      - name: Upload backend digest artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: backend-digest
+          path: backend-digest.txt
+
+  build-frontend:
+    needs: quality-gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    outputs:
+      image_digest: ${{ steps.push.outputs.digest }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+      - name: Auth to Fly registry
+        run: fly auth docker
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_BUILDS }}
+      - name: Build and push frontend image
+        id: push
+        run: |
+          GIT_SHA="${GITHUB_SHA}"
+          FRONTEND_REGISTRY_APP="${FRONTEND_REGISTRY_APP:?Set FRONTEND_REGISTRY_APP in GitHub repository variables}"
+          TAG="registry.fly.io/${FRONTEND_REGISTRY_APP}:git-${GIT_SHA::8}"
+          docker build -t "$TAG" -f frontend/Dockerfile .
+          docker push "$TAG"
+          DIGEST="$(docker image inspect --format='{{index .RepoDigests 0}}' "$TAG")"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+        env:
+          FRONTEND_REGISTRY_APP: ${{ vars.FRONTEND_REGISTRY_APP }}
+      - name: Save frontend digest artifact
+        run: echo "${{ steps.push.outputs.digest }}" > frontend-digest.txt
+      - name: Upload frontend digest artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: frontend-digest
+          path: frontend-digest.txt
+
+  deploy-staging:
+    needs:
+      - build-backend
+      - build-frontend
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+      - name: Deploy backend to staging
+        run: |
+          STAGING_BACKEND_APP="${STAGING_BACKEND_APP:?Set STAGING_BACKEND_APP in the staging GitHub environment variables}"
+          fly deploy \
+            --app "$STAGING_BACKEND_APP" \
+            --config fly/backend-staging.toml \
+            --image "${{ needs.build-backend.outputs.image_digest }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+          STAGING_BACKEND_APP: ${{ vars.STAGING_BACKEND_APP }}
+      - name: Deploy frontend to staging
+        run: |
+          STAGING_FRONTEND_APP="${STAGING_FRONTEND_APP:?Set STAGING_FRONTEND_APP in the staging GitHub environment variables}"
+          fly deploy \
+            --app "$STAGING_FRONTEND_APP" \
+            --config fly/frontend-staging.toml \
+            --image "${{ needs.build-frontend.outputs.image_digest }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+          STAGING_FRONTEND_APP: ${{ vars.STAGING_FRONTEND_APP }}
+      - name: Smoke test staging
+        run: |
+          STAGING_BACKEND_APP="${STAGING_BACKEND_APP:?Set STAGING_BACKEND_APP in the staging GitHub environment variables}"
+          STAGING_FRONTEND_APP="${STAGING_FRONTEND_APP:?Set STAGING_FRONTEND_APP in the staging GitHub environment variables}"
+          BACKEND_URL="${STAGING_BACKEND_URL:-https://${STAGING_BACKEND_APP}.fly.dev}"
+          FRONTEND_URL="${STAGING_FRONTEND_URL:-https://${STAGING_FRONTEND_APP}.fly.dev}"
+          bash scripts/smoke_backend.sh "$BACKEND_URL"
+          bash scripts/smoke_frontend.sh "$FRONTEND_URL" "$BACKEND_URL"
+        env:
+          STAGING_BACKEND_APP: ${{ vars.STAGING_BACKEND_APP }}
+          STAGING_FRONTEND_APP: ${{ vars.STAGING_FRONTEND_APP }}
+          STAGING_BACKEND_URL: ${{ vars.STAGING_BACKEND_URL }}
+          STAGING_FRONTEND_URL: ${{ vars.STAGING_FRONTEND_URL }}

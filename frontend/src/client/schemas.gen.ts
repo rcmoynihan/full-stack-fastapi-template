@@ -71,6 +71,33 @@ export const HTTPValidationErrorSchema = {
     title: 'HTTPValidationError'
 } as const;
 
+export const HealthCheckSchema = {
+    properties: {
+        status: {
+            type: 'string',
+            const: 'ok',
+            title: 'Status'
+        },
+        database: {
+            type: 'string',
+            const: 'ok',
+            title: 'Database'
+        },
+        git_sha: {
+            type: 'string',
+            title: 'Git Sha'
+        },
+        environment: {
+            type: 'string',
+            title: 'Environment'
+        }
+    },
+    type: 'object',
+    required: ['status', 'database', 'git_sha', 'environment'],
+    title: 'HealthCheck',
+    description: 'Health check response with runtime and database status.'
+} as const;
+
 export const ItemCreateSchema = {
     properties: {
         title: {

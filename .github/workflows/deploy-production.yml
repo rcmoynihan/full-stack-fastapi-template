@@ -1,32 +1,113 @@
-name: Deploy to Production
+name: Promote to Production
 
 on:
-  release:
-    types:
-      - published
+  workflow_dispatch:
+    inputs:
+      ci_cd_run_id:
+        description: "Successful CI/CD workflow run ID whose backend-digest and frontend-digest artifacts should be promoted"
+        required: true
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
-  deploy:
-    # Do not deploy in the main repository, only in user projects
-    if: github.repository_owner != 'fastapi'
-    runs-on:
-      - self-hosted
-      - production
-    env:
-      ENVIRONMENT: production
-      DOMAIN: ${{ secrets.DOMAIN_PRODUCTION }}
-      STACK_NAME: ${{ secrets.STACK_NAME_PRODUCTION }}
-      SECRET_KEY: ${{ secrets.SECRET_KEY }}
-      FIRST_SUPERUSER: ${{ secrets.FIRST_SUPERUSER }}
-      FIRST_SUPERUSER_PASSWORD: ${{ secrets.FIRST_SUPERUSER_PASSWORD }}
-      SMTP_HOST: ${{ secrets.SMTP_HOST }}
-      SMTP_USER: ${{ secrets.SMTP_USER }}
-      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-      EMAILS_FROM_EMAIL: ${{ secrets.EMAILS_FROM_EMAIL }}
-      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+  promote:
+    runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - run: docker compose -f compose.yml --project-name ${{ secrets.STACK_NAME_PRODUCTION }} build
-      - run: docker compose -f compose.yml --project-name ${{ secrets.STACK_NAME_PRODUCTION }} up -d
+      - name: Set up flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # v1.6
+      - name: Download and validate promoted image digests
+        id: digests
+        run: |
+          SOURCE_RUN_ID="${SOURCE_RUN_ID:?Provide a CI/CD workflow run ID}"
+          if [[ ! "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
+            echo "FAIL: CI/CD workflow run ID must be numeric"
+            exit 1
+          fi
+
+          RUN_NAME="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq '.name')"
+          RUN_STATUS="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq '.status')"
+          RUN_CONCLUSION="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}" --jq '.conclusion')"
+          if [[ "$RUN_NAME" != "CI/CD" || "$RUN_STATUS" != "completed" || "$RUN_CONCLUSION" != "success" ]]; then
+            echo "FAIL: run ${SOURCE_RUN_ID} is not a successful completed CI/CD run"
+            echo "name=${RUN_NAME} status=${RUN_STATUS} conclusion=${RUN_CONCLUSION}"
+            exit 1
+          fi
+
+          download_artifact() {
+            local artifact_name="$1"
+            local artifact_id
+
+            artifact_id="$(gh api "/repos/${GITHUB_REPOSITORY}/actions/runs/${SOURCE_RUN_ID}/artifacts?per_page=100" \
+              --jq ".artifacts[] | select(.name == \"${artifact_name}\") | .id" | tail -n 1)"
+            if [[ -z "$artifact_id" ]]; then
+              echo "FAIL: ${artifact_name} artifact not found on CI/CD run ${SOURCE_RUN_ID}"
+              exit 1
+            fi
+
+            mkdir -p "artifacts/${artifact_name}"
+            gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}/zip" > "artifacts/${artifact_name}.zip"
+            unzip -q -o "artifacts/${artifact_name}.zip" -d "artifacts/${artifact_name}"
+          }
+
+          read_digest() {
+            local artifact_name="$1"
+            local digest_file="artifacts/${artifact_name}/${artifact_name}.txt"
+
+            if [[ ! -f "$digest_file" ]]; then
+              echo "FAIL: ${digest_file} was not present in the artifact"
+              exit 1
+            fi
+
+            tr -d '[:space:]' < "$digest_file"
+          }
+
+          validate_digest() {
+            local label="$1"
+            local digest="$2"
+
+            if [[ ! "$digest" =~ ^registry\.fly\.io/[a-z0-9][a-z0-9-]*@sha256:[a-f0-9]{64}$ ]]; then
+              echo "FAIL: ${label} digest is not a Fly registry sha256 digest ref"
+              exit 1
+            fi
+          }
+
+          download_artifact "backend-digest"
+          download_artifact "frontend-digest"
+
+          BACKEND_DIGEST="$(read_digest "backend-digest")"
+          FRONTEND_DIGEST="$(read_digest "frontend-digest")"
+          validate_digest "backend" "$BACKEND_DIGEST"
+          validate_digest "frontend" "$FRONTEND_DIGEST"
+
+          {
+            echo "backend_digest=$BACKEND_DIGEST"
+            echo "frontend_digest=$FRONTEND_DIGEST"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN_ID: ${{ inputs.ci_cd_run_id }}
+      - name: Deploy backend to production
+        run: |
+          PROD_BACKEND_APP="${PROD_BACKEND_APP:?Set PROD_BACKEND_APP in the production GitHub environment variables}"
+          fly deploy \
+            --app "$PROD_BACKEND_APP" \
+            --config fly/backend-prod.toml \
+            --image "${{ steps.digests.outputs.backend_digest }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PROD }}
+          PROD_BACKEND_APP: ${{ vars.PROD_BACKEND_APP }}
+      - name: Deploy frontend to production
+        run: |
+          PROD_FRONTEND_APP="${PROD_FRONTEND_APP:?Set PROD_FRONTEND_APP in the production GitHub environment variables}"
+          fly deploy \
+            --app "$PROD_FRONTEND_APP" \
+            --config fly/frontend-prod.toml \
+            --image "${{ steps.digests.outputs.frontend_digest }}"
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_PROD }}
+          PROD_FRONTEND_APP: ${{ vars.PROD_FRONTEND_APP }}

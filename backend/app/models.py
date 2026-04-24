@@ -1,5 +1,6 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Literal
 
 from pydantic import EmailStr
 from sqlalchemy import DateTime
@@ -7,7 +8,7 @@ from sqlmodel import Field, Relationship, SQLModel
 
 
 def get_datetime_utc() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 # Shared properties
@@ -53,7 +54,7 @@ class User(UserBase, table=True):
         default_factory=get_datetime_utc,
         sa_type=DateTime(timezone=True),  # type: ignore
     )
-    items: list["Item"] = Relationship(back_populates="owner", cascade_delete=True)
+    items: list[Item] = Relationship(back_populates="owner", cascade_delete=True)
 
 
 # Properties to return via API, id is always required
@@ -111,6 +112,15 @@ class ItemsPublic(SQLModel):
 # Generic message
 class Message(SQLModel):
     message: str
+
+
+class HealthCheck(SQLModel):
+    """Health check response with runtime and database status."""
+
+    status: Literal["ok"]
+    database: Literal["ok"]
+    git_sha: str
+    environment: str
 
 
 # JSON payload containing access token
