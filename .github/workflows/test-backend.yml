@@ -21,8 +21,12 @@ jobs:
           python-version: "3.14"
       - name: Install uv
         uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7.6.0
+      - name: Install Supabase CLI
+        run: bash scripts/install-supabase-cli.sh
       - run: docker compose down -v --remove-orphans
-      - run: docker compose up -d db mailcatcher
+      - name: Start Supabase Auth
+        run: bash scripts/supabase-local.sh start
+      - run: docker compose up -d db
       - name: Migrate DB
         run: uv run bash scripts/prestart.sh
         working-directory: backend
@@ -48,6 +52,10 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: changethis
       - run: docker compose down -v --remove-orphans
+        if: always()
+      - name: Stop Supabase Auth
+        run: bash scripts/supabase-local.sh stop
+        if: always()
       - name: Store coverage files
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:

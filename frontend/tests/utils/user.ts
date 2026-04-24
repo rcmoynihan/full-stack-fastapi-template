@@ -13,6 +13,9 @@ export async function signUpNewUser(
   await page.getByTestId("password-input").fill(password)
   await page.getByTestId("confirm-password-input").fill(password)
   await page.getByRole("button", { name: "Sign Up" }).click()
+  await page.waitForURL("/")
+  await page.evaluate(() => localStorage.clear())
+  await page.context().clearCookies()
   await page.goto("/login")
 }
 
@@ -31,5 +34,5 @@ export async function logInUser(page: Page, email: string, password: string) {
 export async function logOutUser(page: Page) {
   await page.getByTestId("user-menu").click()
   await page.getByRole("menuitem", { name: "Log out" }).click()
-  await page.goto("/login")
+  await page.waitForURL("/login")
 }

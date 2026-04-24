@@ -3,7 +3,6 @@ import { useMutation } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-import { type UpdatePassword, UsersService } from "@/client"
 import {
   Form,
   FormControl,
@@ -14,7 +13,9 @@ import {
 } from "@/components/ui/form"
 import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
+import useAuth from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
+import { supabase } from "@/lib/supabase"
 import { handleError } from "@/utils"
 
 const formSchema = z
@@ -35,11 +36,16 @@ const formSchema = z
     message: "The passwords don't match",
     path: ["confirm_password"],
   })
+  .refine((data) => data.current_password !== data.new_password, {
+    message: "New password cannot be the same as the current one",
+    path: ["new_password"],
+  })
 
 type FormData = z.infer<typeof formSchema>
 
 const ChangePassword = () => {
   const { showSuccessToast, showErrorToast } = useCustomToast()
+  const { user: currentUser } = useAuth()
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onSubmit",
@@ -52,8 +58,20 @@ const ChangePassword = () => {
   })
 
   const mutation = useMutation({
-    mutationFn: (data: UpdatePassword) =>
-      UsersService.updatePasswordMe({ requestBody: data }),
+    mutationFn: async (data: FormData) => {
+      if (!currentUser?.email) {
+        throw new Error("Current user email is unavailable")
+      }
+      const signInResult = await supabase.auth.signInWithPassword({
+        email: currentUser.email,
+        password: data.current_password,
+      })
+      if (signInResult.error) throw signInResult.error
+      const updateResult = await supabase.auth.updateUser({
+        password: data.new_password,
+      })
+      if (updateResult.error) throw updateResult.error
+    },
     onSuccess: () => {
       showSuccessToast("Password updated successfully")
       form.reset()

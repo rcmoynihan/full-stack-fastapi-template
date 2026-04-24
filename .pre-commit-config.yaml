@@ -110,11 +110,3 @@ repos:
         language: unsupported
         files: ^backend/.*$|^scripts/check-client-drift\.sh$|^scripts/generate-client\.sh$|^frontend/openapi-ts\.config\.ts$|^frontend/openapi\.json$|^frontend/src/client/.*
         stages: [pre-push]
-
-      - id: add-release-date
-        language: unsupported
-        name: add date to latest release header
-        entry: uv run python scripts/add_latest_release_date.py
-        files: ^release-notes\.md$
-        pass_filenames: false
-        stages: [pre-commit]

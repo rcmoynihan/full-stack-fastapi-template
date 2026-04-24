@@ -9,7 +9,7 @@
 - Pydantic Settings in `app/core/config.py`
 - Local dev reads the repo `.env` file
 - Deployed environments should use environment variables and managed secrets
-- Key settings: DATABASE_URL or POSTGRES_* values, SECRET_KEY, FIRST_SUPERUSER
+- Key settings: DATABASE_URL or POSTGRES_* values, SUPABASE_* values, FIRST_SUPERUSER
 
 ## Database
 - SQLModel with SQLAlchemy underneath

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test"
-import { findLastEmail } from "./utils/mailcatcher"
+import { findLastEmail, getEmailHtml } from "./utils/mailpit"
 import { randomEmail, randomPassword } from "./utils/random"
 import { logInUser, signUpNewUser } from "./utils/user"
 
@@ -46,28 +46,22 @@ test("User can reset password successfully using the link", async ({
 
   const emailData = await findLastEmail({
     request,
-    filter: (e) => e.recipients.includes(`<${email}>`),
+    filter: (e) => e.To.some((to) => to.Address === email),
     timeout: 5000,
   })
 
+  const html = await getEmailHtml({ request, id: emailData.ID })
+  const url = html.match(/href="([^"]+)"/)?.[1]?.replaceAll("&amp;", "&")
+
   await page.goto(
-    `${process.env.MAILCATCHER_HOST}/messages/${emailData.id}.html`,
+    url!.replace("http://127.0.0.1:55321", process.env.VITE_SUPABASE_URL!),
   )
-
-  const selector = 'a[href*="/reset-password?token="]'
-
-  let url = await page.getAttribute(selector, "href")
-
-  // TODO: update var instead of doing a replace
-  url = url!.replace("http://localhost/", "http://localhost:5173/")
-
-  // Set the new password and confirm it
-  await page.goto(url)
 
   await page.getByTestId("new-password-input").fill(newPassword)
   await page.getByTestId("confirm-password-input").fill(newPassword)
   await page.getByRole("button", { name: "Reset Password" }).click()
   await expect(page.getByText("Password updated successfully")).toBeVisible()
+  await page.waitForURL("/login")
 
   // Check if the user is able to login with the new password
   await logInUser(page, email, newPassword)
@@ -75,7 +69,7 @@ test("User can reset password successfully using the link", async ({
 
 test("Expired or invalid reset link", async ({ page }) => {
   const password = randomPassword()
-  const invalidUrl = "/reset-password?token=invalidtoken"
+  const invalidUrl = "/reset-password"
 
   await page.goto(invalidUrl)
 
@@ -83,7 +77,7 @@ test("Expired or invalid reset link", async ({ page }) => {
   await page.getByTestId("confirm-password-input").fill(password)
   await page.getByRole("button", { name: "Reset Password" }).click()
 
-  await expect(page.getByText("Invalid token")).toBeVisible()
+  await expect(page.getByText("Auth session missing")).toBeVisible()
 })
 
 test("Weak new password validation", async ({ page, request }) => {
@@ -101,20 +95,16 @@ test("Weak new password validation", async ({ page, request }) => {
 
   const emailData = await findLastEmail({
     request,
-    filter: (e) => e.recipients.includes(`<${email}>`),
+    filter: (e) => e.To.some((to) => to.Address === email),
     timeout: 5000,
   })
 
+  const html = await getEmailHtml({ request, id: emailData.ID })
+  const url = html.match(/href="([^"]+)"/)?.[1]?.replaceAll("&amp;", "&")
+
   await page.goto(
-    `${process.env.MAILCATCHER_HOST}/messages/${emailData.id}.html`,
+    url!.replace("http://127.0.0.1:55321", process.env.VITE_SUPABASE_URL!),
   )
-
-  const selector = 'a[href*="/reset-password?token="]'
-  let url = await page.getAttribute(selector, "href")
-  url = url!.replace("http://localhost/", "http://localhost:5173/")
-
-  // Set a weak new password
-  await page.goto(url)
   await page.getByTestId("new-password-input").fill(weakPassword)
   await page.getByTestId("confirm-password-input").fill(weakPassword)
   await page.getByRole("button", { name: "Reset Password" }).click()

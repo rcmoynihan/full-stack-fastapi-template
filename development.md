@@ -7,6 +7,7 @@ consistent with CI and avoid relying on staging or production deployment files.
 
 - Docker and Docker Compose for local database and full-stack runs. Compose
   watch support is required for `just dev-watch`.
+- Supabase CLI for local Supabase Auth.
 - `uv` for backend dependency and command execution.
 - Bun for frontend development and tests.
 - `just` for repo-level commands.
@@ -22,10 +23,12 @@ brew install just
 ### Host-Run Hot Reload
 
 Use this mode for day-to-day frontend work and for the fastest feedback loop.
-Start the database with Compose, then run the backend and frontend on the host:
+Start Supabase Auth and the database, then run the backend and frontend on the
+host:
 
 ```bash
-bash scripts/docker-compose-local.sh up -d --wait db mailcatcher
+supabase start
+bash scripts/docker-compose-local.sh up -d --wait db
 (cd backend && uv run bash scripts/prestart.sh)
 just backend-dev
 just frontend-dev
@@ -37,6 +40,8 @@ Open:
 - Backend API: <http://localhost:8000>
 - Swagger UI: <http://localhost:8000/docs>
 - ReDoc: <http://localhost:8000/redoc>
+- Supabase Studio: <http://localhost:55323>
+- Supabase Mailpit: <http://localhost:55324>
 
 ### Compose Backend/Container Watch
 
@@ -62,7 +67,8 @@ Open:
 - Frontend: <http://localhost:5173>
 - Backend API: <http://localhost:8000>
 - Swagger UI: <http://localhost:8000/docs>
-- Mailcatcher: <http://localhost:1080>
+- Supabase Studio: <http://localhost:55323>
+- Supabase Mailpit: <http://localhost:55324>
 - Adminer, when the local profile is enabled: <http://localhost:8080>
 
 To start the non-watch container stack:
@@ -137,12 +143,17 @@ bun run build
 bun run test
 ```
 
-## Mailcatcher
+## Supabase Auth
 
-Mailcatcher captures local email sent by the backend. The Compose environment
-uses SMTP on port `1025`, and the web UI is available at:
+Supabase owns signup, login, sessions, password recovery, and password changes.
+The local Supabase CLI stack runs on dedicated ports to avoid the default
+Supabase CLI port range:
 
-<http://localhost:1080>
+- API: <http://localhost:55321>
+- Studio: <http://localhost:55323>
+- Mailpit: <http://localhost:55324>
+
+Password recovery emails sent by local Supabase Auth appear in Mailpit.
 
 ## Environment Files
 
@@ -151,13 +162,13 @@ development defaults only. Staging and production configuration belongs in Fly
 secrets.
 
 The local Postgres container listens on `127.0.0.1:55432` from the host and on
-`db:5432` from other Compose services. This avoids collisions with Supabase CLI
-or another local Postgres instance using the default host port.
+`db:5432` from other Compose services. Supabase Auth runs from the Supabase CLI
+on `127.0.0.1:55321`.
 
 Local frontend API calls use the Vite `/api` proxy configured in
 `frontend/vite.config.ts`. Playwright defaults to
-`MAILCATCHER_HOST=http://localhost:1080` for host-run tests, while the Compose
-Playwright service sets `MAILCATCHER_HOST=http://mailcatcher:1080`.
+`MAILPIT_HOST=http://localhost:55324` for host-run tests, while the Compose
+Playwright service sets `MAILPIT_HOST=http://host.docker.internal:55324`.
 Runtime frontend configuration in deployed environments is generated from Fly
 environment variables at container startup.
 
@@ -214,5 +225,6 @@ Some hooks may modify files. Use `just check` for read-only validation and
 - Backend API: <http://localhost:8000>
 - Swagger UI: <http://localhost:8000/docs>
 - ReDoc: <http://localhost:8000/redoc>
-- Mailcatcher: <http://localhost:1080>
+- Supabase Studio: <http://localhost:55323>
+- Supabase Mailpit: <http://localhost:55324>
 - Adminer, when enabled locally: <http://localhost:8080>

@@ -23,4 +23,15 @@ case "${LOCAL_DOCKER_PLATFORM:-}" in
         ;;
 esac
 
-exec docker compose "$@"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+COMPOSE_ENV_ARGS=()
+
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    COMPOSE_ENV_ARGS+=(--env-file "$PROJECT_ROOT/.env")
+fi
+
+if [ -f "$PROJECT_ROOT/.env.supabase.local" ]; then
+    COMPOSE_ENV_ARGS+=(--env-file "$PROJECT_ROOT/.env.supabase.local")
+fi
+
+exec docker compose "${COMPOSE_ENV_ARGS[@]}" "$@"

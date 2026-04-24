@@ -11,6 +11,7 @@ production uses.
 
 - Frontend: a Fly app serving the built React application.
 - Backend: a Fly app running FastAPI behind the Fly proxy.
+- Auth: Supabase Auth.
 - Database: Supabase Postgres, with SSL required.
 - Images: built by CI, pushed to the Fly registry, and deployed by immutable digest.
 - Migrations: run once per deploy with the backend Fly `release_command`.
@@ -23,6 +24,11 @@ registry.
 
 Create a Supabase project in a region close to the Fly primary region. For
 example, use a Supabase US East region with Fly `iad`.
+
+In Supabase Auth, set the site URL to the deployed frontend URL for each
+environment and add the frontend `/reset-password` URL as an allowed redirect.
+Use Supabase email templates and SMTP settings for auth-related email delivery.
+The app backend does not send password recovery or invitation email.
 
 Create application database roles instead of using the Supabase `postgres`
 superuser for the app. Use separate credentials for runtime traffic and
@@ -66,6 +72,14 @@ From Supabase, collect two SSL-enabled connection strings:
   migration role.
 
 Both URLs must include `sslmode=require`.
+
+Also collect:
+
+- Supabase project URL, for `SUPABASE_URL`.
+- Supabase publishable key, for frontend runtime config and backend settings.
+- Supabase secret key, for backend Auth admin operations.
+- Supabase Auth issuer URL, usually
+  `https://<project-ref>.supabase.co/auth/v1`.
 
 ## Connection Budget
 
@@ -138,9 +152,14 @@ fly secrets set -a "${APP_SLUG}-backend-staging" \
   PROJECT_NAME="Full Stack FastAPI Project" \
   FRONTEND_HOST="https://${APP_SLUG}-frontend-staging.fly.dev" \
   BACKEND_CORS_ORIGINS="https://${APP_SLUG}-frontend-staging.fly.dev" \
+  SUPABASE_URL="https://<project-ref>.supabase.co" \
+  SUPABASE_AUTH_URL="https://<project-ref>.supabase.co" \
+  SUPABASE_PUBLISHABLE_KEY="<supabase-publishable-key>" \
+  SUPABASE_SECRET_KEY="<supabase-secret-key>" \
+  SUPABASE_JWT_AUDIENCE="authenticated" \
+  SUPABASE_JWT_ISSUER="https://<project-ref>.supabase.co/auth/v1" \
   DATABASE_URL="postgresql+psycopg://app_runtime:<runtime-password>@<pooler-host>:5432/postgres?sslmode=require" \
   DATABASE_URL_DIRECT="postgresql+psycopg://app_migrator:<migration-password>@<direct-host>:5432/postgres?sslmode=require" \
-  SECRET_KEY="<generated-secret>" \
   FIRST_SUPERUSER="admin@example.com" \
   FIRST_SUPERUSER_PASSWORD="<generated-password>" \
   WEB_CONCURRENCY="1" \
@@ -152,10 +171,6 @@ Set optional backend secrets when the service is configured to use them:
 
 ```bash
 fly secrets set -a "${APP_SLUG}-backend-staging" \
-  SMTP_HOST="<smtp-host>" \
-  SMTP_USER="<smtp-user>" \
-  SMTP_PASSWORD="<smtp-password>" \
-  EMAILS_FROM_EMAIL="info@example.com" \
   SENTRY_DSN="<sentry-dsn>"
 ```
 
@@ -163,7 +178,9 @@ Set frontend runtime config separately:
 
 ```bash
 fly secrets set -a "${APP_SLUG}-frontend-staging" \
-  API_BASE_URL="https://${APP_SLUG}-backend-staging.fly.dev"
+  API_BASE_URL="https://${APP_SLUG}-backend-staging.fly.dev" \
+  SUPABASE_URL="https://<project-ref>.supabase.co" \
+  SUPABASE_PUBLISHABLE_KEY="<supabase-publishable-key>"
 ```
 
 Repeat the same shape for production with production hosts, database URLs, and
@@ -182,8 +199,8 @@ image carries the revision it was built from.
 
 The template uses the Fly-provided `*.fly.dev` hostnames as the canonical
 staging and production hostnames. Set `FRONTEND_HOST`,
-`BACKEND_CORS_ORIGINS`, frontend `API_BASE_URL`, and GitHub smoke-test URL
-variables to those hostnames.
+`BACKEND_CORS_ORIGINS`, frontend `API_BASE_URL`, Supabase Auth redirect URLs,
+and GitHub smoke-test URL variables to those hostnames.
 
 Custom domains are application-specific work and are not part of the default
 deployment path.
@@ -243,8 +260,9 @@ Sentry is the default monitoring integration. The backend reports runtime
 environment and release metadata through Sentry, and `/api/v1/utils/health-check/`
 returns `git_sha` and `environment` for smoke checks and release triage.
 
-Email delivery is BYO SMTP. Configure `SMTP_HOST`, credentials, and
-`EMAILS_FROM_EMAIL` in Fly secrets when outbound email is required.
+Auth email delivery is configured in Supabase Auth, not in Fly backend secrets.
+Use Supabase SMTP settings when production password recovery or confirmation
+emails need a custom sender.
 
 ## Manual Deploys
 

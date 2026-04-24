@@ -1,7 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 import 'dotenv/config'
 
-process.env.MAILCATCHER_HOST ??= 'http://localhost:1080'
+process.env.MAILPIT_HOST ??= 'http://localhost:55324'
+process.env.VITE_SUPABASE_URL ??= process.env.SUPABASE_URL ?? 'http://127.0.0.1:55321'
+process.env.VITE_SUPABASE_PUBLISHABLE_KEY ??=
+  process.env.SUPABASE_PUBLISHABLE_KEY ?? 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH'
 
 /**
  * Read environment variables from file.

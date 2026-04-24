@@ -4,18 +4,22 @@ default:
 
 # Start the local stack with Docker Compose.
 dev:
-    bash scripts/docker-compose-local.sh up -d --wait
+    bash scripts/supabase-local.sh start
+    bash scripts/docker-compose-local.sh up -d --wait --build
 
 # Start the local stack with Docker Compose watch for backend/container changes.
 dev-watch:
+    bash scripts/supabase-local.sh start
     bash scripts/docker-compose-local.sh -f compose.yml -f compose.override.yml -f compose.watch.yml watch
 
 # Stop local services.
 down:
     bash scripts/docker-compose-local.sh down
+    bash scripts/supabase-local.sh stop
 
 # Reset the local database, then run migrations and bootstrap data.
 dev-reset-db:
+    bash scripts/supabase-local.sh start
     bash scripts/docker-compose-local.sh down -v --remove-orphans
     bash scripts/docker-compose-local.sh up -d --wait db
     cd backend && uv run bash scripts/prestart.sh
@@ -72,7 +76,7 @@ check:
 
     require_docker() {
         if ! command -v docker >/dev/null 2>&1; then
-            echo "Docker is required for 'just check' because backend tests need local Postgres and mailcatcher." >&2
+            echo "Docker is required for 'just check' because backend tests need local Postgres and Supabase Auth." >&2
             echo "Install Docker Desktop or another Docker Engine with Compose v2, then retry." >&2
             exit 1
         fi
@@ -134,7 +138,7 @@ check:
 
     require_docker
     plan_service_cleanup db
-    plan_service_cleanup mailcatcher
+    bash "$PROJECT_ROOT/scripts/supabase-local.sh" start
     trap cleanup EXIT
 
     echo "=== Lockfile check ==="
@@ -142,7 +146,7 @@ check:
     (cd "$PROJECT_ROOT/frontend" && bun install --frozen-lockfile)
 
     echo "=== Local service setup ==="
-    bash "$PROJECT_ROOT/scripts/docker-compose-local.sh" up -d --wait db mailcatcher
+    bash "$PROJECT_ROOT/scripts/docker-compose-local.sh" up -d --wait db
     (cd "$PROJECT_ROOT/backend" && uv run bash scripts/prestart.sh)
 
     echo "=== Backend lint + typecheck ==="
@@ -183,5 +187,6 @@ seed-demo:
 
 # Run e2e tests against the Docker Compose stack.
 test-e2e:
+    bash scripts/supabase-local.sh start
     bash scripts/docker-compose-local.sh build prestart backend playwright
     bash scripts/docker-compose-local.sh --profile test run --rm playwright bunx playwright test

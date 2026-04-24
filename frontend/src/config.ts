@@ -1,5 +1,7 @@
 interface AppConfig {
   API_BASE_URL: string
+  SUPABASE_URL: string
+  SUPABASE_PUBLISHABLE_KEY: string
 }
 
 declare global {
@@ -19,4 +21,20 @@ declare global {
  */
 export function getApiBaseUrl(): string {
   return window.APP_CONFIG?.API_BASE_URL || ""
+}
+
+export function getSupabaseUrl(): string {
+  return (
+    window.APP_CONFIG?.SUPABASE_URL ||
+    import.meta.env.VITE_SUPABASE_URL ||
+    "http://127.0.0.1:55321"
+  )
+}
+
+export function getSupabasePublishableKey(): string {
+  return (
+    window.APP_CONFIG?.SUPABASE_PUBLISHABLE_KEY ||
+    import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+    "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH"
+  )
 }

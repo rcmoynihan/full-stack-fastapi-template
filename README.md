@@ -5,13 +5,13 @@ Postgres database, and Fly.io deployment target.
 
 ## Architecture
 
-- Backend: FastAPI, SQLModel, Pydantic settings, Alembic migrations, JWT auth,
-  email-based password recovery, and Pytest.
+- Backend: FastAPI, SQLModel, Pydantic settings, Alembic migrations, Supabase
+  Auth bearer-token verification, and Pytest.
 - Frontend: React, TypeScript, Vite, TanStack Router/Query, Tailwind CSS,
   shadcn/ui, generated OpenAPI client, and Playwright.
-- Local development: Docker Compose for local services and integration tests,
-  Compose watch for backend/container changes, and host-run Vite for frontend
-  hot reload.
+- Local development: Supabase CLI for local Auth, Docker Compose for app
+  services and integration tests, Compose watch for backend/container changes,
+  and host-run Vite for frontend hot reload.
 - Staging and production: Fly.io apps using immutable CI-built images, Fly
   secrets, Fly proxy/TLS, and Supabase-managed Postgres.
 
@@ -37,8 +37,8 @@ environment file policy, and local service URLs.
 
 ## Deployment
 
-Deployment is Fly-native. Supabase provides managed Postgres, including backups
-and point-in-time recovery where supported by the active plan.
+Deployment is Fly-native. Supabase provides Auth and managed Postgres,
+including backups and point-in-time recovery where supported by the active plan.
 
 See [deployment.md](./deployment.md) for Fly app setup, secrets, domains,
 connection budgeting, CI/CD expectations, rollback, and database restore notes.
@@ -56,7 +56,9 @@ python -c "import secrets; print(secrets.token_urlsafe(32))"
 
 At minimum, deployed environments need non-default values for:
 
-- `SECRET_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
 - `FIRST_SUPERUSER_PASSWORD`
 - `DATABASE_URL`
 - `DATABASE_URL_DIRECT`
@@ -67,7 +69,6 @@ At minimum, deployed environments need non-default values for:
 - Frontend details: [frontend/README.md](./frontend/README.md)
 - Development workflow: [development.md](./development.md)
 - Deployment workflow: [deployment.md](./deployment.md)
-- Release notes: [release-notes.md](./release-notes.md)
 
 ## License
 

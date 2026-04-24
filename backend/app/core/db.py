@@ -1,10 +1,10 @@
+import uuid
 from typing import Any
 
 from sqlmodel import Session, create_engine, select
 
-from app import crud
 from app.core.config import settings
-from app.models import User, UserCreate
+from app.models import User
 
 
 def get_engine_kwargs() -> dict[str, Any]:
@@ -32,11 +32,20 @@ engine = create_engine(
 # for more details: https://github.com/fastapi/full-stack-fastapi-template/issues/28
 
 
-def init_db(session: Session) -> None:
+def init_db(
+    session: Session,
+    *,
+    user_id: uuid.UUID | None = None,
+    email: str | None = None,
+    full_name: str | None = None,
+) -> None:
     """Create the configured first superuser when missing.
 
     Args:
         session: Database session used for the bootstrap query and insert.
+        user_id: Optional Supabase Auth user ID.
+        email: Optional superuser email.
+        full_name: Optional superuser display name.
     """
     # Tables should be created with Alembic migrations
     # But if you don't want to use migrations, create
@@ -46,13 +55,22 @@ def init_db(session: Session) -> None:
     # This works because the models are already imported and registered from app.models
     # SQLModel.metadata.create_all(engine)
 
+    superuser_id = user_id or settings.FIRST_SUPERUSER_ID
+    superuser_email = email or str(settings.FIRST_SUPERUSER)
     user = session.exec(
-        select(User).where(User.email == settings.FIRST_SUPERUSER)
+        select(User).where((User.id == superuser_id) | (User.email == superuser_email))
     ).first()
     if not user:
-        user_in = UserCreate(
-            email=settings.FIRST_SUPERUSER,
-            password=settings.FIRST_SUPERUSER_PASSWORD,
+        user = User(
+            id=superuser_id,
+            email=superuser_email,
+            full_name=full_name,
             is_superuser=True,
         )
-        user = crud.create_user(session=session, user_create=user_in)
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+    elif not user.is_superuser:
+        user.is_superuser = True
+        session.add(user)
+        session.commit()

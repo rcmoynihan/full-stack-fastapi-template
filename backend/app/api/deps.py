@@ -1,21 +1,16 @@
 from collections.abc import Generator
 from typing import Annotated
 
-import jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jwt.exceptions import InvalidTokenError
-from pydantic import ValidationError
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import Session
 
-from app.core import security
-from app.core.config import settings
+from app import crud
 from app.core.db import engine
-from app.models import TokenPayload, User
+from app.core.supabase import SupabaseAuthError, supabase_token_verifier
+from app.models import User
 
-reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/login/access-token"
-)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_db() -> Generator[Session]:
@@ -24,21 +19,60 @@ def get_db() -> Generator[Session]:
 
 
 SessionDep = Annotated[Session, Depends(get_db)]
-TokenDep = Annotated[str, Depends(reusable_oauth2)]
+TokenDep = Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)]
 
 
-def get_current_user(session: SessionDep, token: TokenDep) -> User:
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]
-        )
-        token_data = TokenPayload(**payload)
-    except (InvalidTokenError, ValidationError):  # fmt: skip
+def get_current_user(session: SessionDep, credentials: TokenDep) -> User:
+    """Resolve the current app user from a Supabase bearer token.
+
+    Args:
+        session: Database session.
+        credentials: HTTP bearer credentials from FastAPI security dependency.
+
+    Returns:
+        Active app user profile synced from Supabase token claims.
+
+    Raises:
+        HTTPException: Raised when the token is missing, invalid, or inactive.
+    """
+    if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
-    user = session.get(User, token_data.sub)
+
+    try:
+        claims = supabase_token_verifier.verify(credentials.credentials)
+    except SupabaseAuthError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Could not validate credentials",
+        )
+
+    user = session.get(User, claims.sub)
+    full_name = claims.user_metadata.get("full_name")
+    if user is None:
+        user = crud.get_user_by_email(session=session, email=str(claims.email))
+        if user is None:
+            user = User(id=claims.sub, email=claims.email, full_name=full_name)
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+        elif user.id != claims.sub:
+            user.id = claims.sub
+            if full_name:
+                user.full_name = full_name
+            session.add(user)
+            session.commit()
+            session.refresh(user)
+    elif user.email != claims.email or (full_name and user.full_name != full_name):
+        user.email = claims.email
+        if full_name:
+            user.full_name = full_name
+        session.add(user)
+        session.commit()
+        session.refresh(user)
+
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_active:

@@ -16,6 +16,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install Supabase CLI
+        run: bash scripts/install-supabase-cli.sh
+      - name: Start Supabase Auth
+        run: bash scripts/supabase-local.sh start
       - run: docker compose build
       - run: docker compose down -v --remove-orphans
       - run: docker compose up -d --wait backend frontend
@@ -24,3 +28,7 @@ jobs:
       - name: Test frontend is up
         run: curl --fail http://localhost:5173
       - run: docker compose down -v --remove-orphans
+        if: always()
+      - name: Stop Supabase Auth
+        run: bash scripts/supabase-local.sh stop
+        if: always()

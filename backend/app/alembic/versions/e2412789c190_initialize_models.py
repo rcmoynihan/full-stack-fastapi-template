@@ -25,9 +25,6 @@ def upgrade():
         sa.Column("is_superuser", sa.Boolean(), nullable=False),
         sa.Column("full_name", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column(
-            "hashed_password", sqlmodel.sql.sqltypes.AutoString(), nullable=False
-        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_user_email"), "user", ["email"], unique=True)

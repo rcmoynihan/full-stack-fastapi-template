@@ -12,16 +12,15 @@ import { ThemeProvider } from "./components/theme-provider"
 import { Toaster } from "./components/ui/sonner"
 import { getApiBaseUrl } from "./config"
 import "./index.css"
+import { getSupabaseAccessToken, supabase } from "./lib/supabase"
 import { routeTree } from "./routeTree.gen"
 
 OpenAPI.BASE = getApiBaseUrl()
-OpenAPI.TOKEN = async () => {
-  return localStorage.getItem("access_token") || ""
-}
+OpenAPI.TOKEN = getSupabaseAccessToken
 
 const handleApiError = (error: Error) => {
   if (error instanceof ApiError && [401, 403].includes(error.status)) {
-    localStorage.removeItem("access_token")
+    supabase.auth.signOut()
     window.location.href = "/login"
   }
 }

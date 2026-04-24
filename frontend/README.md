@@ -49,18 +49,21 @@ Regenerate the client whenever backend API changes alter the OpenAPI schema.
 
 ## Using a Remote API
 
-The frontend reads its API base URL from `/env.js` at runtime. For local Vite
-development, `frontend/public/env.js` leaves `API_BASE_URL` empty so requests use
-the Vite `/api` proxy.
+The frontend reads its API base URL and Supabase public configuration from
+`/env.js` at runtime. For local Vite development, `frontend/public/env.js`
+leaves `API_BASE_URL` empty so requests use the Vite `/api` proxy and falls back
+to the local Supabase CLI defaults.
 
 For deployed containers, set `API_BASE_URL` in the container environment:
 
 ```env
 API_BASE_URL=https://api.my-domain.example.com
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_PUBLISHABLE_KEY=<supabase-publishable-key>
 ```
 
-The frontend Docker entrypoint writes that value to `/env.js` when the container
-starts.
+The frontend Docker entrypoint writes those values to `/env.js` when the
+container starts.
 
 ## Code Structure
 
@@ -75,16 +78,16 @@ The frontend code is structured as follows:
 ## End-to-End Testing with Playwright
 
 The frontend includes initial end-to-end tests using Playwright. The reset
-password tests read email through mailcatcher, so run them through the Compose
-Playwright service when possible:
+password tests read email through Supabase Mailpit, so run them through the
+Compose Playwright service when possible:
 
 ```bash
 just test-e2e
 ```
 
-That command starts the Playwright container with the Compose backend and
-mailcatcher dependencies. To run Playwright from your host instead, start both
-backend and mailcatcher first:
+That command starts the Playwright container with the Compose backend and local
+Supabase Auth dependencies. To run Playwright from your host instead, start the
+local stack first:
 
 ```bash
 just dev
@@ -96,9 +99,8 @@ Then run the tests:
 bunx playwright test
 ```
 
-Host-run Playwright defaults to `MAILCATCHER_HOST=http://localhost:1080`.
-Override that environment variable only when mailcatcher is exposed somewhere
-else.
+Host-run Playwright defaults to `MAILPIT_HOST=http://localhost:55324`. Override
+that environment variable only when Supabase Mailpit is exposed somewhere else.
 
 You can also run your tests in UI mode to see the browser and interact with it running:
 

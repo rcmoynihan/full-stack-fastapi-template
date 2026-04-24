@@ -4,6 +4,14 @@ set -x
 
 # Local development prestart: wait for DB, migrate, bootstrap.
 # In production, migrations run via release command scripts/migrate.sh.
+if [ -f ../.env ]; then
+    set -a
+    . ../.env
+    if [ -f ../.env.supabase.local ]; then
+        . ../.env.supabase.local
+    fi
+    set +a
+fi
 
 python -m app.commands.ensure_database
 

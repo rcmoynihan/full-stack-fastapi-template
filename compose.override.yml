@@ -30,17 +30,6 @@ services:
       - "app/main.py"
     volumes:
       - ./backend/htmlcov:/app/backend/htmlcov
-    environment:
-      SMTP_HOST: mailcatcher
-      SMTP_PORT: "1025"
-      SMTP_TLS: "false"
-      EMAILS_FROM_EMAIL: noreply@example.com
-
-  mailcatcher:
-    image: schickling/mailcatcher
-    ports:
-      - "1080:1080"
-      - "1025:1025"
 
   frontend:
     restart: "no"
@@ -48,6 +37,8 @@ services:
       - "5173:80"
     environment:
       API_BASE_URL: http://localhost:8000
+      SUPABASE_URL: ${SUPABASE_URL:-http://127.0.0.1:55321}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
 
   playwright:
     build:
@@ -58,14 +49,17 @@ services:
     ipc: host
     depends_on:
       - backend
-      - mailcatcher
     env_file:
       - .env
     environment:
       API_BASE_URL: http://backend:8000
-      MAILCATCHER_HOST: http://mailcatcher:1080
+      VITE_SUPABASE_URL: http://host.docker.internal:55321
+      VITE_SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      MAILPIT_HOST: http://host.docker.internal:55324
       PLAYWRIGHT_HTML_HOST: 0.0.0.0
       CI: ${CI:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./frontend/blob-report:/app/frontend/blob-report
       - ./frontend/test-results:/app/frontend/test-results

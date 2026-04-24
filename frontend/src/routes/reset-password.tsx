@@ -3,13 +3,11 @@ import { useMutation } from "@tanstack/react-query"
 import {
   createFileRoute,
   Link as RouterLink,
-  redirect,
   useNavigate,
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-import { LoginService } from "@/client"
 import { AuthLayout } from "@/components/Common/AuthLayout"
 import {
   Form,
@@ -21,13 +19,9 @@ import {
 } from "@/components/ui/form"
 import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
-import { isLoggedIn } from "@/hooks/useAuth"
 import useCustomToast from "@/hooks/useCustomToast"
+import { signOutSupabase, supabase } from "@/lib/supabase"
 import { handleError } from "@/utils"
-
-const searchSchema = z.object({
-  token: z.string().catch(""),
-})
 
 const formSchema = z
   .object({
@@ -48,15 +42,6 @@ type FormData = z.infer<typeof formSchema>
 
 export const Route = createFileRoute("/reset-password")({
   component: ResetPassword,
-  validateSearch: searchSchema,
-  beforeLoad: async ({ search }) => {
-    if (isLoggedIn()) {
-      throw redirect({ to: "/" })
-    }
-    if (!search.token) {
-      throw redirect({ to: "/login" })
-    }
-  },
   head: () => ({
     meta: [
       {
@@ -67,7 +52,6 @@ export const Route = createFileRoute("/reset-password")({
 })
 
 function ResetPassword() {
-  const { token } = Route.useSearch()
   const { showSuccessToast, showErrorToast } = useCustomToast()
   const navigate = useNavigate()
 
@@ -82,18 +66,23 @@ function ResetPassword() {
   })
 
   const mutation = useMutation({
-    mutationFn: (data: { new_password: string; token: string }) =>
-      LoginService.resetPassword({ requestBody: data }),
-    onSuccess: () => {
+    mutationFn: async (data: { new_password: string }) => {
+      const { error } = await supabase.auth.updateUser({
+        password: data.new_password,
+      })
+      if (error) throw error
+    },
+    onSuccess: async () => {
       showSuccessToast("Password updated successfully")
       form.reset()
+      await signOutSupabase()
       navigate({ to: "/login" })
     },
     onError: handleError.bind(showErrorToast),
   })
 
   const onSubmit = (data: FormData) => {
-    mutation.mutate({ new_password: data.new_password, token })
+    mutation.mutate({ new_password: data.new_password })
   }
 
   return (
